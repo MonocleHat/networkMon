@@ -14,19 +14,23 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 using namespace std;
 //We need to register a socket path
 char SOCKPATH[] = "/tmp/netmonsock";
 static void sigHandler(int);
-
+pid_t *arrpid;
+int infCount;
+bool running = true;
 int main(){
 	char BUF[1024];
 	struct sigaction sigcontrol; //for registering signals
 	string intfname;
 	string *intfarr;
-	int infCount;
+	
 	int choice;
-	bool running = true;
+	
+	bool parentProc = true;
 	//socket construction
 	//---------------------
 	struct sockaddr_un addr;
@@ -49,6 +53,7 @@ int main(){
 	cout << "----------------------" << endl;
 	cout << "Enter each Interface Name" << endl;
 	intfarr = new string[infCount];
+	arrpid = new pid_t[infCount];
 	for (int i = 0; i < infCount; i++){
 		cout << "Intf " << i << ": ";
 		cin >> intfname;
@@ -78,7 +83,17 @@ int main(){
 				break;
 		}
 	}
-	//choices confirmed we start creating our sockets
+	for(int i = 0; i < infCount & parentProc; i++){
+		arrpid[i] = fork();
+		if(arrpid[i] == 0){
+			parentProc = false;
+			execlp("./intfMon", "./intfMon", intfarr[i], NULL);
+			cout << "SHOULDNT SEE ME" << endl;
+		}
+	}
+	
+	if(parentProc){
+//choices confirmed we start creating our sockets
 	//initialization
 	cout << "Initializing sockets, this may take a moment" << endl;
 	memset(&addr, 0, sizeof(addr));
@@ -136,6 +151,32 @@ int main(){
 			cout << BUF << endl;
 		}
 		sleep(3);
+	}
+	}
+	pid_t ret = 0;
+	int status = -1;
+	while(ret>=0){
+		ret = wait(&status);
+		cout << "PID: " << ret << " has concluded" << endl;
+	}
+	unlink(SOCKPATH);
+	delete [] arrpid;
+	delete [] intfarr;
+	close(sockfd);
+	close(cliSock);
+	
+	
+}
+
+static void sigHandler(int sig){
+	switch(sig){
+		case SIGINT:
+			cout << "MAIN::SIGINT CAUGHT" << endl;
+			for(int i = 0; i < infCount; i++){
+				kill(arrpid[i], SIGUSR2);
+			}
+			running = false;
+			break;
 	}
 }
 
