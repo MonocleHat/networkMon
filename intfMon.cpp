@@ -34,7 +34,7 @@ int main(int argc, char*argv[]){
    int sockfd;
    int hosSock, reSock;
     bool running = false;
-   char intfCommand[256];
+   char intfCommand[528];
    char BUF[128];
    //-=-=-=-=-=-=-=-=-=-=-
    //Storing our data collection
@@ -69,10 +69,10 @@ int main(int argc, char*argv[]){
        perror("intfMon::CONNECT");
        exit(-1);
    }
-   cout << getpid() << "::CONNECT" << endl;
+   cout << getpid() << "::CONNECTED" << endl;
     intfName = argv[1]; //set name up
     sprintf(intfCommand,"%d:READY",getpid());
-
+    cout << intfCommand << endl;
     write(sockfd, intfCommand,sizeof(intfCommand)); //should send ready command
     reSock = read(sockfd, BUF,sizeof(BUF));
     string recv;
@@ -157,6 +157,7 @@ int main(int argc, char*argv[]){
                statfile >> tx_packets;
                statfile.close();
            }
+           int len = sprintf(intfCommand, "%s::Operating State:%s\n rx_bytes:%d rx_dropped:%d rx_packets:%d rx_errors:%d\n tx_bytes:%d tx_dropped:%d tx_packets:%d tx_errors:%d\ncarrier_UP:%d carrier_DOWN:%d",intfName,opstate,rx_bytes,rx_dropped,rx_packets,rx_errors,tx_bytes,tx_dropped,tx_packets,tx_errors,carr_up_cnt,carr_down_cnt);
         }
     }
     if(SIGONOFF == true){
@@ -182,3 +183,4 @@ static void sigHandler(int sig){
             break;
             
     }
+}

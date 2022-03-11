@@ -20,7 +20,7 @@ using namespace std;
 char SOCKPATH[] = "/tmp/netmonsock";
 static void sigHandler(int);
 pid_t *arrpid;
-int infCount;
+int infCount = 0;
 bool running = true;
 int main(){
 	char BUF[1024];
@@ -83,7 +83,7 @@ int main(){
 				break;
 		}
 	}
-	for(int i = 0; i < infCount & parentProc; i++){
+	for(int i = 0; (i < infCount) & parentProc; i++){
 		arrpid[i] = fork();
 		if(arrpid[i] == 0){
 			parentProc = false;
@@ -121,30 +121,39 @@ int main(){
 	string recv;
 	string token;
 	string parsedcommand;
-	int totalcnt;
+	int totalcnt = 0;
 	while(totalcnt != infCount){
+		cout << "Waiting for clients to accept" <<endl;
 		if((cliSock = accept(sockfd,NULL,NULL))==-1){
 			cout << "SERVER ACC::" << strerror(errno) << endl;
 			unlink(SOCKPATH);
 			close(sockfd);
 			exit(-1);
 		}
+		cout << "waiting for read" << endl;
+		memset(&BUF,0,sizeof(BUF));
 		reSock=read(cliSock,BUF,sizeof(BUF));
+		cout << BUF << endl;
+		memset(&BUF,0,sizeof(BUF));
+		cout << "should've read" << endl;
 			recv = BUF;
+			
 			token = recv.substr(0,recv.find(':'));
 			recv.erase(0,recv.find(':'));
 			parsedcommand = recv;
 			//getting commands
 			if(parsedcommand == "READY"){
-				sprintf(BUF,"%s:STANDBY",token);
+				sprintf(BUF,"%s:STANDBY",token.c_str());
 				write(cliSock,BUF,sizeof(BUF));
 			}
 		totalcnt++;
+		cout << totalcnt << " | " << infCount << endl;
 
 	}
+	cout << "OUT OF LOOP" << endl;
 	running = true;
 	while(running){
-		
+		cout << "SENDING" << endl;
 		sprintf(BUF,"GETDATA");
 		write(cliSock,BUF,sizeof(BUF));
 		while((reSock=read(cliSock,BUF,sizeof(BUF)))>0){
@@ -153,6 +162,7 @@ int main(){
 		sleep(3);
 	}
 	}
+	cout << "IF SEE THIS FIRST, IT SKIPPED" << endl;
 	pid_t ret = 0;
 	int status = -1;
 	while(ret>=0){
