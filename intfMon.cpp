@@ -1,17 +1,18 @@
-#include <signal.h>
-#include <fcntl.h>
 #include <iostream>
-#include <stdio.h>
 #include <fstream>
-#include <unistd.h>
+#include <signal.h>
+#include <string.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <sys/un.h>
-#include <stdlib.h>
+#include <unistd.h>
 using namespace std;
 char SOCKPATH[] = "/tmp/netmonsock";
 static void sigHandler(int);
   bool SIGONOFF = false;
-int main(int argc, char*argv[]){
+int main(int argc, char**argv){
     /*
     * TODO:
     * store the interface to open in string
@@ -71,22 +72,25 @@ int main(int argc, char*argv[]){
    }
    cout << getpid() << "::CONNECTED" << endl;
     intfName = argv[1]; //set name up
-    sprintf(intfCommand,"%d:READY",getpid());
-    cout << intfCommand << endl;
+    sprintf(intfCommand,"READY");
+    cout << "INTFMON::" << intfCommand << endl;
+    cout << "INFTNAME::" << intfName << "PID: " << getpid() <<endl;
     write(sockfd, intfCommand,sizeof(intfCommand)); //should send ready command
     reSock = read(sockfd, BUF,sizeof(BUF));
     string recv;
 	string token;
 	string parsedcommand;
-            recv = BUF;
-			token = recv.substr(0,recv.find(':'));
-			recv.erase(0,recv.find(':'));
-			parsedcommand = recv;
-        if(strncmp("STANDBY",parsedcommand.c_str(),7)==0){
+            // recv = BUF;
+            // cout << "INTFMON::STANDBYMESSAGE::" << BUF << endl;
+			// token = recv.substr(0,recv.find(':'));
+			// recv.erase(0,recv.find(':'));
+			// parsedcommand = recv;
+        if(strncmp("STANDBY",BUF,7)==0){
             running = true;
         }
-    while(running && !SIGONOFF){
+    while(running){
         //collect and output interface data
+        cout << "INTFMON::STANDBY::RECIEVED" << endl;
         read(sockfd,BUF,sizeof(BUF));
         if(strncmp("GETDATA",BUF,7)==0){
            ifstream statfile;

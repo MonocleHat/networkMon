@@ -83,11 +83,12 @@ int main(){
 				break;
 		}
 	}
+	
 	for(int i = 0; (i < infCount) & parentProc; i++){
 		arrpid[i] = fork();
 		if(arrpid[i] == 0){
 			parentProc = false;
-			execlp("./intfMon", "./intfMon", intfarr[i], NULL);
+			execlp("./intfMon", "./intfMon", intfarr[i].c_str(), NULL);
 			cout << "SHOULDNT SEE ME" << endl;
 		}
 	}
@@ -118,9 +119,6 @@ int main(){
 		close(sockfd);
 		exit(-1);
 	}
-	string recv;
-	string token;
-	string parsedcommand;
 	int totalcnt = 0;
 	while(totalcnt != infCount){
 		cout << "Waiting for clients to accept" <<endl;
@@ -133,31 +131,26 @@ int main(){
 		cout << "waiting for read" << endl;
 		memset(&BUF,0,sizeof(BUF));
 		reSock=read(cliSock,BUF,sizeof(BUF));
-		cout << BUF << endl;
+		cout << "NETMON::MAIN::"<< BUF << endl;
 		memset(&BUF,0,sizeof(BUF));
-		cout << "should've read" << endl;
-			recv = BUF;
-			
-			token = recv.substr(0,recv.find(':'));
-			recv.erase(0,recv.find(':'));
-			parsedcommand = recv;
-			//getting commands
-			if(parsedcommand == "READY"){
-				sprintf(BUF,"%s:STANDBY",token.c_str());
+			if(BUF == "READY"){
+				sprintf(BUF,"STANDBY");
 				write(cliSock,BUF,sizeof(BUF));
+				totalcnt++;
 			}
-		totalcnt++;
-		cout << totalcnt << " | " << infCount << endl;
+		//totalcnt++;
+		
 
 	}
-	cout << "OUT OF LOOP" << endl;
+	cout << "NETMON::OUT OF SETUP" << endl;
 	running = true;
 	while(running){
-		cout << "SENDING" << endl;
+		cout << "SENDING GET DATA COMMAND" << endl;
 		sprintf(BUF,"GETDATA");
 		write(cliSock,BUF,sizeof(BUF));
-		while((reSock=read(cliSock,BUF,sizeof(BUF)))>0){
-			cout << BUF << endl;
+		cout << "DEBUG::BEFORE SENDING COMMAND" << endl;
+		while((reSock=read(cliSock,BUF,sizeof(BUF)))>0){ //this never pings
+			cout << "DEBUG::INWHILE--MAIN::" << BUF << endl;
 		}
 		sleep(3);
 	}
