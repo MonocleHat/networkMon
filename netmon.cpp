@@ -8,6 +8,8 @@
 #include <sys/un.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <pthread.h>
 #define BUFLEN 256
 using namespace std;
 /*
@@ -22,9 +24,12 @@ char SOCKPATH[] = "/tmp/netmonsock";
 static void sigHandler(int);
 pid_t *arrpid;
 int infCount = 0;
+int numCli = 0;
 bool running = true;
-
+pthread_mutex_t lock;
+void *recv_func(void*arg);
 //begin program
+int sockfd;
 int main(){
 	signal(SIGINT, sigHandler);
 	char BUF[BUFLEN];
@@ -36,8 +41,8 @@ int main(){
 
 	//sock construction variables
 	struct sockaddr_un addr;
-	int sockfd; //main socket
-	int cliSock; //client sockets
+	 //main socket
+	
 	cout << "-=-=-=-=-=-= Spinning Up =-=-=-=-=-=-" << endl;
 	cout << "NetMon Program (0.5.0)" << endl;
 	cout << "Before running we need information!" << endl;
@@ -78,6 +83,8 @@ int main(){
 				break;
 		}
 	}
+	pthread_t tid[infCount];//holds our threads
+	int cliSock[infCount]; //client sockets
 	for(int i = 0;(i < infCount) & parentProc; i++){
 		arrpid[i]=fork();
 		if(arrpid[i]==0){
@@ -115,17 +122,68 @@ int main(){
         
         running = true;
         int ret,len;
+		//bool is_up = true;
         while(running){
-            if((cliSock = accept(sockfd,NULL,NULL))==-1){
+            if((cliSock[numCli] = accept(sockfd,NULL,NULL))==-1){
                 cout << "NETMONERROR" << strerror(errno) << endl;
                 unlink(SOCKPATH);
                 close(sockfd);
                 exit(-1);
             }
             cout << "connected" << endl;
-            ret = read(cliSock,BUF,BUFLEN);
+			ret = pthread_create(&tid[numCli],NULL,recv_func,&cliSock[numCli]);
+			if(ret!=0){
+				cout << "err thread [" << numCli << "] " << strerror(errno) << endl;
+			}else{
+				++numCli;
+			}
+			//create a thread
+
+            // ret = read(cliSock,BUF,BUFLEN);
+            // if (ret>0){
+            //     if (strcmp(BUF,"READY")==0){
+            //        len = sprintf(BUF,"GETDATA")+1;
+            //        ret = write(cliSock,BUF,len);
+            //         if(ret < 0){
+            //             cout <<"NETMON::ERR WRITING GETDATA::" << strerror(errno) << endl;
+            //             close(sockfd);
+            //             exit(-1);
+            //         }
+            //     }
+            //     if (strcmp(BUF,"LINKDOWN")==0){
+            //         cout << "Setting Link Up" << endl;
+            //         len = sprintf(BUF,"SETLINK")+1;
+            //         ret = write(cliSock,BUF,len);
+            //         if(ret < 0 ){
+            //             cout << "NETMON::ERR WRITING SETLINK" << strerror(errno) << endl;
+            //             close(sockfd);
+            //             exit(-1);
+            //         }
+            //     }
+
+            // }
+            
+        }
+	}
+	for(int i = 0; i<numCli;i++){
+		pthread_join(tid[i],NULL);
+		cout << "thread ["<<i<<"] closed" << endl;
+	}
+	pthread_mutex_destroy(&lock);
+
+
+}
+void* recv_func(void* arg){
+	char BUF[BUFLEN];
+	int ret,len;
+	int cliSock=*(int*)arg;
+	cout << "THREAD ENTERED" << endl;
+	while(running){
+		cout << "performing read" << endl;
+		ret = read(cliSock,BUF,BUFLEN);
             if (ret>0){
                 if (strcmp(BUF,"READY")==0){
+					pthread_mutex_lock(&lock);
                    len = sprintf(BUF,"GETDATA")+1;
                    ret = write(cliSock,BUF,len);
                     if(ret < 0){
@@ -133,8 +191,10 @@ int main(){
                         close(sockfd);
                         exit(-1);
                     }
+					pthread_mutex_unlock(&lock);
                 }
                 if (strcmp(BUF,"LINKDOWN")==0){
+					pthread_mutex_lock(&lock);
                     cout << "Setting Link Up" << endl;
                     len = sprintf(BUF,"SETLINK")+1;
                     ret = write(cliSock,BUF,len);
@@ -143,13 +203,15 @@ int main(){
                         close(sockfd);
                         exit(-1);
                     }
+					pthread_mutex_unlock(&lock);
                 }
+				
 
             }
-            
-        }
+			sleep(3);
 	}
-
+	pthread_exit(NULL);
+	 
 }
 
 static void sigHandler(int sig){

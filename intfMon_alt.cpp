@@ -66,10 +66,12 @@ int main(int argc, char**argv){
             if(strcmp(BUF,"GETDATA")==0){
                 //we start monitoring
                 cout << getpid()<<"::Monitoring" << endl;
-               do{
+               //do{
                     monitorStatistics(intfName);
-                    ret = read(sockfd,BUF,BUFLEN);
-               }while(is_running && is_up && ret <0);
+                   len = sprintf(BUF,"READY") + 1;
+                   ret = write(sockfd, BUF, len);
+                   // ret = read(sockfd,BUF,BUFLEN);
+              // }while(is_running && is_up && ret <0);
                if(!is_up){
                    cout << getpid()<<"::LINK DOWN!" << endl;
                    len = sprintf(BUF,"LINKDOWN") + 1;
@@ -120,7 +122,7 @@ void monitorStatistics(string name){
     int tx_bytes,tx_dropped,tx_errors,tx_packets;
     ifstream statfile;
     string dir = "/sys/class/net/"+name;
-
+    string bigone;
     //gathering data
     //operstate
     filepath = dir+"/operstate";
