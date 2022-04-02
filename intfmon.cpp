@@ -8,22 +8,22 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "intfmon.h"
 #define BUFLEN 256
 using namespace std;
-void monitorStatistics(string );
-void shutdownHandler(int);
-char SOCKPATH[] = "/tmp/netmonsock";
+
+char SOCKPATH[] = "/tmp/netmonsock";//where our sockets will connect to
 bool is_running;
 bool is_up;
 
 int main(int argc, char**argv){
-    string intfName = argv[1];
-    signal(SIGINT,shutdownHandler);
+    string intfName = argv[1]; 
+    signal(SIGUSR1,shutdownHandler); //we're listening for a SIGUSR1 call from netmon, to signal shutdown of application
     //socket setup
-    struct sockaddr_un addr;
-    int sockfd, reSock;
+    struct sockaddr_un addr; //structure for our socket
+    int sockfd;
     int len, ret;
-    char BUF[BUFLEN];
+    char BUF[BUFLEN]; //data is returned and sent through here
     struct timeval tv; //using to set our socket delay
     tv.tv_sec = 1;
     tv.tv_usec = 0;
@@ -35,7 +35,7 @@ int main(int argc, char**argv){
         cout << "Process:: " << getpid() << "::" << strerror(errno) << endl;
         exit(-1);
     }
-    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(const char*) &tv,sizeof(tv));
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(const char*) &tv,sizeof(tv)); //setting a socket delay using socket options
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, SOCKPATH, sizeof(addr.sun_path)-1);
     //we start to connect to our local socket
@@ -60,18 +60,17 @@ int main(int argc, char**argv){
     is_running = true;
     while(is_running){
         //several commands -- "GETDATA" | "SETLINK" | "SHUTDOWN"
-        //if strcmp == any of these, carry out actions
+        /* we read for each of these commands
+         * if any of these commands are recieved, the corresponding action is taken
+         */
         ret = read(sockfd,BUF,BUFLEN);
         if(ret>0){
             if(strcmp(BUF,"GETDATA")==0){
                 //we start monitoring
                 cout << getpid()<<"::Monitoring" << endl;
-               //do{
                     monitorStatistics(intfName);
                    len = sprintf(BUF,"READY") + 1;
                    ret = write(sockfd, BUF, len);
-                   // ret = read(sockfd,BUF,BUFLEN);
-              // }while(is_running && is_up && ret <0);
                if(!is_up){
                    cout << getpid()<<"::LINK DOWN!" << endl;
                    len = sprintf(BUF,"LINKDOWN") + 1;
@@ -79,19 +78,19 @@ int main(int argc, char**argv){
                }
             }
         }
-
+        //if we recieve the command to stand a link up, we set it back up
         if(strcmp(BUF,"SETLINK")==0){
             cout << getpid() << "::RESTORING LINK" << endl;
             int tmpfd;
-            struct ifreq ifr; //used to interact with an interface using netdevice
-            tmpfd = socket(AF_INET,SOCK_DGRAM,0);
+            struct ifreq ifr; //used to interact with an interface using netdevice header. provides access to interfaces
+            tmpfd = socket(AF_INET,SOCK_DGRAM,0); //connect to a temporary socket
             if(tmpfd < 0){
                 cout << getpid() << "::Err in SETLINK restoring" << endl;
             }
             memset(&ifr, 0, sizeof(ifr));
-            strncpy(ifr.ifr_name, intfName.c_str(), IFNAMSIZ);
+            strncpy(ifr.ifr_name, intfName.c_str(), IFNAMSIZ); //copy the interface data into our ifreq struct
             ifr.ifr_flags |= IFF_UP;
-            ret = ioctl(tmpfd, SIOCSIFFLAGS, &ifr);
+            ret = ioctl(tmpfd, SIOCSIFFLAGS, &ifr); //send the IOCTL command to stand up our device
             if(ret==-1){
                 cout <<getpid() << "::Err in SETLINK (ioctl)" << endl;
                 cout << strerror(errno) << endl;
@@ -112,7 +111,8 @@ int main(int argc, char**argv){
     len = sprintf(BUF,"DONE") + 1;
     ret = write(sockfd,BUF,len);
     close(sockfd);
-    return 0; 
+    exit(1);
+
 }
 
 void monitorStatistics(string name){
@@ -198,11 +198,11 @@ void monitorStatistics(string name){
     }else{
         is_up = true;
     }
-    sleep(1);
+   
 }
-    void shutdownHandler(int signal){
+   void shutdownHandler(int signal){
     switch(signal) {
-        case SIGINT:
+        case SIGUSR1:
             cout << "INTFMON::SIGINT CAUGHT" << endl;
             is_running = false;
             break;
